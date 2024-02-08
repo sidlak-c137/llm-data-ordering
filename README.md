@@ -1,6 +1,12 @@
 # cse517-final-project
 
+## Environment Setup
 
+For conda environment setup:
+```
+conda env create -f environment.yml
+```
+(can probably use venv also)
 
 ## Getting started
 
