@@ -6,7 +6,22 @@ For conda environment setup:
 ```
 conda env create -f environment.yml
 ```
-(can probably use venv also)
+
+For venv environment setup (on VM) (see [Google Cloud docs](https://cloud.google.com/python/docs/setup#linux)):
+```
+sudo apt update
+sudo apt install python3 python3-dev python3-venv
+sudo apt-get install wget
+wget https://bootstrap.pypa.io/get-pip.py
+sudo python3 get-pip.py
+
+cd <project>
+python3 -m venv nlp-project
+
+source nlp-project/bin/activate
+pip install -r requirements.txt
+```
+
 
 ## Getting started
 A note a /data:
