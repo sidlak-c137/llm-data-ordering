@@ -9,6 +9,12 @@ conda env create -f environment.yml
 (can probably use venv also)
 
 ## Getting started
+A note a /data:
+snli_data_map_coordinates exclude entries where label = -1
+snli_ngram_results did not exclude entries where label = -1
+Thus difference in length.
+
+## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 
