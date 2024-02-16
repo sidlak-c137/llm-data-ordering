@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from peft import LoraConfig, get_peft_model
 
-
 def setup_train_args(training_args_dict):
     """
     Args:
@@ -23,20 +22,25 @@ def setup_train_args(training_args_dict):
         adam_beta2=0.95,
         weight_decay=0.01,
         learning_rate=4e-4,
-        warmup_steps=2000,
+        # warmup_steps=2000,
         lr_scheduler_type='cosine',
-        
+        # max_grad_norm=0.5,
         # changing hyperparams
         output_dir=training_args_dict["output_dir"],
         num_train_epochs=training_args_dict["epochs"],
         per_device_train_batch_size=training_args_dict["batch_size"],
         per_device_eval_batch_size=training_args_dict["batch_size"],
+        dataloader_num_workers=8,
 
         load_best_model_at_end=True,
 
         # evaluates every 'eval_steps', which defaults to `logging_steps` 
-        evaluation_strategy="steps",
+        # evaluation_strategy="steps",
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_strategy="epoch",
         report_to="none",
+        # gradient_accumulation_steps=4,
     )
     
     return training_args
@@ -52,10 +56,11 @@ def create_model(model_name, quantized):
     # set up model + tokenizer
     if quantized==True:
         bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16
+            # load_in_4bit=True,
+            # bnb_4bit_use_double_quant=True,
+            # bnb_4bit_quant_type="nf4",
+            # bnb_4bit_compute_dtype=torch.float16
+            load_in_8bit=True,
         )
         model = AutoModelForSequenceClassification.from_pretrained(model_name, quantization_config=bnb_config, num_labels=3, device_map="auto")
     else:
@@ -77,7 +82,7 @@ def create_model(model_name, quantized):
 
     return model, tokenizer
 
-def load_data(dataset_name, tokenizer):
+def load_data(dataset_name, tokenizer, num_train=500000):
     """
     Args:
         dataset_name: which HF dataset to use for finetuning/evaluation.
@@ -100,7 +105,7 @@ def load_data(dataset_name, tokenizer):
     tokenized_ds.set_format("torch")
 
     # update
-    small_train_dataset = tokenized_ds["train"].shuffle(seed=42).select(range(100))
+    small_train_dataset = tokenized_ds["train"].shuffle(seed=42).select(range(num_train))
     small_eval_dataset = tokenized_ds["validation"].shuffle(seed=42).select(range(100))
     small_test_dataset = tokenized_ds["test"].shuffle(seed=42).select(range(100))
 
@@ -114,6 +119,8 @@ def load_data(dataset_name, tokenizer):
     # test_dataset = tokenized_ds["test"].filter(lambda sample: sample["labels"] != -1)
     
     # return train_dataset, eval_dataset, test_dataset
+
+    # return small_train_dataset, eval_dataset, test_dataset
 
 def tokenize_function_with_tokenizer(dataset_name, examples, tokenizer):
     """
@@ -139,18 +146,19 @@ def main():
     # TODO: move these to args of script
     model_name = "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
     dataset_name = "snli"
-    quantized=True
-    batch_size=16
+    quantized=False
+    batch_size=8
+    num_train = 1000
 
     model, tokenizer = create_model(model_name, quantized)
-    train_dataset, val_dataset, test_dataset = load_data(dataset_name, tokenizer)
+    train_dataset, val_dataset, test_dataset = load_data(dataset_name, tokenizer, num_train)
 
     # set up trainer arguments
     training_args_dict = {}
-    epochs = 3
+    epochs = 10
     training_args_dict["batch_size"] = batch_size
     training_args_dict['epochs'] = int(epochs)
-    training_args_dict['output_dir'] = f'experiment_data/baselines/finetune-{dataset_name}'
+    training_args_dict['output_dir'] = f'experiment_data/baselines/finetune-{dataset_name}-{epochs}-{batch_size}-{num_train}'
 
     train_args = setup_train_args(training_args_dict)
     trainer = Trainer(
