@@ -7,6 +7,7 @@ import evaluate
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from peft import LoraConfig, get_peft_model
+import os
 
 def setup_train_args(training_args_dict):
     """
@@ -104,14 +105,17 @@ def load_data(dataset_name, tokenizer, num_train=500000):
     
     tokenized_ds.set_format("torch")
 
-    # update
-    small_train_dataset = tokenized_ds["train"].shuffle(seed=42).select(range(num_train))
-    small_eval_dataset = tokenized_ds["validation"].shuffle(seed=42).select(range(100))
-    small_test_dataset = tokenized_ds["test"].shuffle(seed=42).select(range(100))
+    # filter -1 samples
+    small_train_dataset = tokenized_ds["train"].filter(lambda sample: sample["labels"] != -1)
+    small_eval_dataset = tokenized_ds["validation"].filter(lambda sample: sample["labels"] != -1)
+    small_test_dataset = tokenized_ds["test"].filter(lambda sample: sample["labels"] != -1)
 
-    small_train_dataset = small_train_dataset.filter(lambda sample: sample["labels"] != -1)
-    small_eval_dataset = small_eval_dataset.filter(lambda sample: sample["labels"] != -1)
-    small_test_dataset = small_test_dataset.filter(lambda sample: sample["labels"] != -1)
+    # get subset for training
+    small_train_dataset = small_train_dataset.shuffle(seed=42).select(range(num_train))
+    # subset for val/test
+    small_eval_dataset = small_eval_dataset.shuffle(seed=42).select(range(100))
+    small_test_dataset = small_test_dataset.shuffle(seed=42).select(range(100))
+    
     return small_train_dataset, small_eval_dataset, small_test_dataset
 
     # train_dataset = tokenized_ds["train"].filter(lambda sample: sample["labels"] != -1)
@@ -147,11 +151,23 @@ def main():
     model_name = "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
     dataset_name = "snli"
     quantized=False
+    frozen=True
     batch_size=8
     num_train = 1000
 
     model, tokenizer = create_model(model_name, quantized)
     train_dataset, val_dataset, test_dataset = load_data(dataset_name, tokenizer, num_train)
+
+    if frozen:
+        # freeze weights except for last score
+        for name, param in model.named_parameters():
+            if name.startswith("model"):
+                param.requires_grad = False
+
+        # try also freezing last layer
+        # for name, param in model.named_parameters():
+        #     if name.startswith("model.layers.21") or name.startswith("model.norm"):
+        #         param.requires_grad = True
 
     # set up trainer arguments
     training_args_dict = {}
@@ -181,6 +197,8 @@ def main():
     trainer.save_model()
 
     # finetune metrics
+    train_metrics = trainer.evaluate(eval_dataset=train_dataset)
+    print(f"train metrics: {train_metrics}")
     val_metrics = trainer.evaluate()
     print(f"val metrics: {val_metrics}")
     test_metrics = trainer.evaluate(eval_dataset=test_dataset)
