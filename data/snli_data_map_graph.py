@@ -48,7 +48,7 @@ an3 = ax0.annotate("hard-to-learn", xy=(0.35, 0.25), xycoords="axes fraction", f
                 va="center", ha="center", bbox=bb('b'))
 
 
-plot.legend(fancybox=True, shadow=True,  ncol=1, title="Correctness")
+plot.legend(fancybox=True, shadow=True,  ncol=1, title="correctness")
 plot.set_xlabel('variability')
 plot.set_ylabel('confidence')
 
