@@ -19,4 +19,3 @@ matplotlib
 seaborn
 numpy
 pandas
-json
