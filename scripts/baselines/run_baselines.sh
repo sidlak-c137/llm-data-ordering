@@ -8,7 +8,7 @@
 #SBATCH --mem-per-cpu=8G
 #SBATCH --time 1:00:00
 
-#SBATCH --chdir=/path/to/repo/
+#SBATCH --chdir=/gscratch/ml4ml/sidlak/cse517-final-project
 #SBATCH --output=finetune_out.txt
 #SBATCH --error=finetune_err.txt
 
@@ -23,9 +23,9 @@ echo go $COUNT_NODE
 echo $HOSTNAMES
 
 export PYTHONPATH="$PYTHONPATH:nlp" # path to python env
-export HF_DATASETS_CACHE="/mmfs1/gscratch/efml/hannahyk/.of_cache"
-export TRANSFORMERS_CACHE="/mmfs1/gscratch/efml/hannahyk/.of_cache"
-export HF_HOME="/mmfs1/gscratch/efml/hannahyk/.of_cache"
+export HF_DATASETS_CACHE="/gscratch/ml4ml/sidlak/.my_cache"
+export TRANSFORMERS_CACHE="/gscratch/ml4ml/sidlak/.my_cache"
+export HF_HOME="/gscratch/ml4ml/sidlak/.my_cache"
 
 # srun python tiny_llama_snli.py
 srun torchrun tiny_llama_snli.py
