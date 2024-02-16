@@ -31,7 +31,7 @@ def setup_train_args(training_args_dict):
         num_train_epochs=training_args_dict["epochs"],
         per_device_train_batch_size=training_args_dict["batch_size"],
         per_device_eval_batch_size=training_args_dict["batch_size"],
-        dataloader_num_workers=8,
+        dataloader_num_workers=1,
 
         load_best_model_at_end=True,
 
