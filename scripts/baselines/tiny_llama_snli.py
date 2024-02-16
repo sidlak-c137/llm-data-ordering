@@ -55,7 +55,7 @@ def create_model(model_name, quantized):
     Returns HF model and tokenizer for given model ID.
     """
     # set up model + tokenizer
-    if quantized==True:
+    if quantized:
         bnb_config = BitsAndBytesConfig(
             # load_in_4bit=True,
             # bnb_4bit_use_double_quant=True,
@@ -71,7 +71,7 @@ def create_model(model_name, quantized):
     model.resize_token_embeddings(len(tokenizer))
     model.config.pad_token_id = tokenizer.pad_token_id
 
-    if quantized==True:
+    if quantized:
         config = LoraConfig(
         r=8, 
         lora_alpha=32, 
@@ -105,26 +105,23 @@ def load_data(dataset_name, tokenizer, num_train=500000):
     
     tokenized_ds.set_format("torch")
 
+    # use smaller subsets for training 
     # filter -1 samples
     small_train_dataset = tokenized_ds["train"].filter(lambda sample: sample["labels"] != -1)
     small_eval_dataset = tokenized_ds["validation"].filter(lambda sample: sample["labels"] != -1)
     small_test_dataset = tokenized_ds["test"].filter(lambda sample: sample["labels"] != -1)
 
-    # get subset for training
     small_train_dataset = small_train_dataset.shuffle(seed=42).select(range(num_train))
-    # subset for val/test
     small_eval_dataset = small_eval_dataset.shuffle(seed=42).select(range(100))
     small_test_dataset = small_test_dataset.shuffle(seed=42).select(range(100))
     
     return small_train_dataset, small_eval_dataset, small_test_dataset
 
+    # full datasets
     # train_dataset = tokenized_ds["train"].filter(lambda sample: sample["labels"] != -1)
     # eval_dataset = tokenized_ds["validation"].filter(lambda sample: sample["labels"] != -1)
     # test_dataset = tokenized_ds["test"].filter(lambda sample: sample["labels"] != -1)
-    
     # return train_dataset, eval_dataset, test_dataset
-
-    # return small_train_dataset, eval_dataset, test_dataset
 
 def tokenize_function_with_tokenizer(dataset_name, examples, tokenizer):
     """
@@ -145,7 +142,6 @@ def compute_metrics(example):
     return metric.compute(predictions=predictions, references=labels)
 
 def main():
-    print(f"cuda device count: {torch.cuda.device_count()}")
     # set up model, tokenizer, data
     # TODO: move these to args of script
     model_name = "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
@@ -186,17 +182,18 @@ def main():
     )
 
     # test baseline evaluation (no finetuning)
-    # metrics = trainer.evaluate(eval_dataset=val_dataset)
-    # test_metrics = trainer.evaluate(eval_dataset=test_dataset)
-    # print("Tiny LLaMA Baseline Evaluations (No fine tuning)")
-    # print(f"validation accuracy: {metrics}")
-    # print(f"Test accuracy: {test_metrics}")
+    metrics = trainer.evaluate(eval_dataset=val_dataset)
+    test_metrics = trainer.evaluate(eval_dataset=test_dataset)
+    print("Tiny LLaMA Baseline Evaluations (No fine tuning)")
+    print(f"validation accuracy: {metrics}")
+    print(f"Test accuracy: {test_metrics}")
 
     # finetune model
     trainer.train()
     trainer.save_model()
 
     # finetune metrics
+    print("Finetuned metrics")
     train_metrics = trainer.evaluate(eval_dataset=train_dataset)
     print(f"train metrics: {train_metrics}")
     val_metrics = trainer.evaluate()

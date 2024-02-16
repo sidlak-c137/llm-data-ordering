@@ -1,0 +1,33 @@
+go 1
+g3052
+cuda device count: 1
+{'loss': 0.9945, 'learning_rate': 0.00039021130325903074, 'epoch': 1.0}
+{'eval_loss': 0.9274845123291016, 'eval_accuracy': 0.5835030549898167, 'eval_runtime': 68.2552, 'eval_samples_per_second': 14.387, 'eval_steps_per_second': 1.802, 'epoch': 1.0}
+{'loss': 0.7912, 'learning_rate': 0.0003618033988749895, 'epoch': 2.0}
+{'eval_loss': 0.9044746160507202, 'eval_accuracy': 0.6109979633401222, 'eval_runtime': 67.9625, 'eval_samples_per_second': 14.449, 'eval_steps_per_second': 1.81, 'epoch': 2.0}
+{'loss': 0.7245, 'learning_rate': 0.00031755705045849464, 'epoch': 3.0}
+{'eval_loss': 0.7914983034133911, 'eval_accuracy': 0.670061099796334, 'eval_runtime': 68.0343, 'eval_samples_per_second': 14.434, 'eval_steps_per_second': 1.808, 'epoch': 3.0}
+{'loss': 0.6666, 'learning_rate': 0.00026180339887498953, 'epoch': 4.0}
+{'eval_loss': 0.7691018581390381, 'eval_accuracy': 0.6873727087576375, 'eval_runtime': 67.9387, 'eval_samples_per_second': 14.454, 'eval_steps_per_second': 1.81, 'epoch': 4.0}
+{'loss': 0.6368, 'learning_rate': 0.0002, 'epoch': 5.0}
+{'eval_loss': 0.7501184940338135, 'eval_accuracy': 0.6904276985743381, 'eval_runtime': 67.8959, 'eval_samples_per_second': 14.463, 'eval_steps_per_second': 1.812, 'epoch': 5.0}
+{'loss': 0.6042, 'learning_rate': 0.00013819660112501054, 'epoch': 6.0}
+{'eval_loss': 0.8068190217018127, 'eval_accuracy': 0.6720977596741344, 'eval_runtime': 67.8992, 'eval_samples_per_second': 14.463, 'eval_steps_per_second': 1.812, 'epoch': 6.0}
+{'loss': 0.5768, 'learning_rate': 8.24429495415054e-05, 'epoch': 7.0}
+{'eval_loss': 0.7414618134498596, 'eval_accuracy': 0.7087576374745418, 'eval_runtime': 67.8979, 'eval_samples_per_second': 14.463, 'eval_steps_per_second': 1.812, 'epoch': 7.0}
+{'loss': 0.5555, 'learning_rate': 3.819660112501053e-05, 'epoch': 8.0}
+{'eval_loss': 0.7233214378356934, 'eval_accuracy': 0.7138492871690427, 'eval_runtime': 67.8539, 'eval_samples_per_second': 14.472, 'eval_steps_per_second': 1.813, 'epoch': 8.0}
+{'loss': 0.5384, 'learning_rate': 9.788696740969295e-06, 'epoch': 9.0}
+{'eval_loss': 0.7263075709342957, 'eval_accuracy': 0.7230142566191446, 'eval_runtime': 67.8774, 'eval_samples_per_second': 14.467, 'eval_steps_per_second': 1.812, 'epoch': 9.0}
+{'loss': 0.5303, 'learning_rate': 0.0, 'epoch': 10.0}
+{'eval_loss': 0.7249724268913269, 'eval_accuracy': 0.725050916496945, 'eval_runtime': 67.9675, 'eval_samples_per_second': 14.448, 'eval_steps_per_second': 1.81, 'epoch': 10.0}
+{'train_runtime': 7601.9843, 'train_samples_per_second': 13.129, 'train_steps_per_second': 1.642, 'train_loss': 0.6618752552912786, 'epoch': 10.0}
+
+train/val/test metrics on same train/val/test splits for training; n=10000 data points for samples, n=1000 for evaluation
+train metrics: {'eval_loss': 0.5341630578041077, 'eval_accuracy': 0.7920048091373609, 'eval_runtime': 683.0096, 'eval_samples_per_second': 14.613, 'eval_steps_per_second': 1.827, 'epoch': 10.0}
+val metrics: {'eval_loss': 0.7233214378356934, 'eval_accuracy': 0.7138492871690427, 'eval_runtime': 67.906, 'eval_samples_per_second': 14.461, 'eval_steps_per_second': 1.811, 'epoch': 10.0}
+test metrics: {'eval_loss': 0.6761056780815125, 'eval_accuracy': 0.7281059063136456, 'eval_runtime': 67.9415, 'eval_samples_per_second': 14.454, 'eval_steps_per_second': 1.81, 'epoch': 10.0}
+
+val/test metrics on full SNLI val/test splits:
+val metrics: {'eval_loss': 0.6613832116127014, 'eval_accuracy': 0.7316602316602316, 'eval_runtime': 676.5602, 'eval_samples_per_second': 14.547, 'eval_steps_per_second': 1.819}
+test metrics: {'eval_loss': 0.6563997864723206, 'eval_accuracy': 0.7338151465798045, 'eval_runtime': 670.6566, 'eval_samples_per_second': 14.648, 'eval_steps_per_second': 1.831}
