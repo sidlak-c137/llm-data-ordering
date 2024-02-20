@@ -1,0 +1,26 @@
+{
+    "model_name": "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
+    "architecture_args": {
+        "unfrozen_layers": ["score"],
+        "quantized": null
+    },
+    "dataset": "snli",
+    "num_train_samples": 10000,
+    "num_val_samples": 1000,
+    "num_test_samples": 1000,
+    "trainer_args": {
+        "optim": "adamw_torch",
+        "adam_beta1": 0.9,
+        "adam_beta2": 0.95,
+        "weight_decay": 0.01,
+        "learning_rate": 4e-4,
+        "lr_scheduler_type": "cosine",
+        "num_train_epochs": 10,
+        "batch_size": 8,
+        "dataloader_num_workers": 8,
+        "load_best_model_at_end": true,
+        "strategy": "epoch",
+        "output_dir": "experiment_data/"
+    },
+    "do_train": true
+}
