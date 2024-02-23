@@ -186,7 +186,7 @@ def main():
     model, tokenizer = create_model(model_name, dataset_name, quantized, unfrozen_layers)
     train_dataset, val_dataset, test_dataset = load_data(dataset_name, tokenizer, num_train, num_val, num_test)
     # set output directory for saved output
-    output_dir = trainer_args["output_dir"] + f"{dataset_name}/{num_train}-{num_val}-{num_test}-{trainer_args['num_train_epochs']}",
+    output_dir = os.path.join(train_args["repo_path"], trainer_args["output_dir"], f"{dataset_name}/{num_train}-{num_val}-{num_test}-{trainer_args['num_train_epochs']}")
     trainer_args["output_dir"] = output_dir
 
     # set up HF trainer for finetuning + evaluation

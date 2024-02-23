@@ -1,10 +1,12 @@
 {
+    "repo_path": "/gscratch/ml4ml/sidlak/cse517-final-project",
     "model_name": "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
     "architecture_args": {
         "unfrozen_layers": ["score"],
         "quantized": null
     },
     "dataset": "snli",
+    "dataset_coordinates": "data/snli_data_map_coordinates.pickle",
     "num_train_samples": 10000,
     "num_val_samples": 1000,
     "num_test_samples": 1000,
@@ -15,12 +17,13 @@
         "weight_decay": 0.01,
         "learning_rate": 4e-4,
         "lr_scheduler_type": "cosine",
+        "num_warmup_steps": 2000,
         "num_train_epochs": 10,
         "batch_size": 8,
         "dataloader_num_workers": 8,
         "load_best_model_at_end": true,
         "strategy": "epoch",
-        "output_dir": "experiment_data/"
+        "output_dir": "scripts/experiment_data/"
     },
     "do_train": true
 }

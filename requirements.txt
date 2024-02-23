@@ -7,6 +7,7 @@ tokenizers
 sentencepiece # might need
 wandb # don't think we need
 zstd
+tqdm
 # for finetuning (ours)
 transformers
 datasets
