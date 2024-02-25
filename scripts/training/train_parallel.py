@@ -96,7 +96,7 @@ class Model():
             for layer in self.configs["architecture_args"]["unfrozen_layers"]:
                 for name, param in self.model.named_parameters():
                     if name.startswith(layer):
-                        param.requires_grad = False
+                        param.requires_grad = True
 
 
     def initialize_data(self):
@@ -141,6 +141,7 @@ class Model():
         )
     
     def train(self):
+        # Checkpoints per 
         if self.configs["do_train"]:
             num_epochs = self.configs["trainer_args"]["num_train_epochs"]
             num_training_steps = num_epochs * len(self.train_dl)
@@ -155,7 +156,6 @@ class Model():
             self.model_parallel.train()
             for epoch in range(num_epochs):
                 for batch in self.train_dl:
-                    print(batch)
                     outputs = self.model_parallel(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
                     loss = outputs.loss
                     self.accelerator.backward(loss)
