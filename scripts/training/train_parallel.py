@@ -52,8 +52,9 @@ class SNLICartographyDataset(Dataset):
 
         
 class Model():
-    def __init__(self, configs):
+    def __init__(self, configs, name):
         self.configs = configs
+        self.name = name
     
     def create_model_tokenizer(self):
         bnb_config = None
@@ -128,7 +129,7 @@ class Model():
             )
         else:
             raise ValueError(f"Dataset {self.configs['optim']} unsupported.")
-        # TODO: Change these to use custome dataloaders
+        # TODO: Change these to use custom dataloaders
         train_dataloader = DataLoader(
             self.train_dataset, shuffle=True, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator
         )
@@ -140,8 +141,13 @@ class Model():
             train_dataloader, eval_dataloader, self.model, self.optimizer
         )
     
+    def _compute_metrics(self, predictions, labels):
+        metric = evaluate.load("accuracy")
+        predictions = torch.argmax(torch.tensor(predictions), dim=-1)
+        return metric.compute(predictions=predictions, references=labels)["accuracy"]
+
+    
     def train(self):
-        # Checkpoints per 
         if self.configs["do_train"]:
             num_epochs = self.configs["trainer_args"]["num_train_epochs"]
             num_training_steps = num_epochs * len(self.train_dl)
@@ -151,11 +157,13 @@ class Model():
                 num_warmup_steps = self.configs["trainer_args"]["num_warmup_steps"],
                 num_training_steps = num_training_steps
             )
-
+            # Train and Evaluate
             progress_bar = tqdm(range(num_training_steps))
-            self.model_parallel.train()
+            i = 0
+            best_acc = 0
             for epoch in range(num_epochs):
                 for batch in self.train_dl:
+                    self.model_parallel.train()
                     outputs = self.model_parallel(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
                     loss = outputs.loss
                     self.accelerator.backward(loss)
@@ -163,7 +171,43 @@ class Model():
                     self.optimizer_parallel.step()
                     lr_scheduler.step()
                     self.optimizer_parallel.zero_grad()
+                    progress_bar.set_description(f"Training Loss: {loss.item()}")
                     progress_bar.update(1)
+                    i += 1
+                    # Evaluate on validation set
+                    if i % self.configs["trainer_args"]["eval_every"] == 0:
+                        best_acc = self.eval(best_acc)
+
+    def eval(self, best_acc):
+        predictions = []
+        labels = []
+        eval_progress_bar = tqdm(range(len(self.eval_dl)), leave=False)
+        self.model_parallel.eval()
+        for eval_batch in self.eval_dl:
+            with torch.no_grad():
+                outputs = self.model_parallel(input_ids=eval_batch["input_ids"], attention_mask=eval_batch["attention_mask"], labels=eval_batch["labels"])
+                eval_progress_bar.set_description(f"Eval Loss: {outputs.loss.item()}")
+                eval_progress_bar.update(1)
+                predictions.append(self.accelerator.gather(outputs.logits).cpu().numpy())
+                labels.append(self.accelerator.gather(eval_batch["labels"]).cpu().numpy())
+        predictions = np.concatenate(predictions)
+        labels = np.concatenate(labels)
+        predictions = predictions[:len(self.eval_dl.dataset)]
+        labels = labels[:len(self.eval_dl.dataset)]
+        # Compute metrics
+        acc = self._compute_metrics(predictions, labels)
+        if self.accelerator.is_main_process:
+            print(f"Evaluation Accuracy: {acc}")
+        # Save model based on validation acc
+        if acc > best_acc:
+            unwrapped_model = self.accelerator.unwrap_model(self.model_parallel)
+            unwrapped_model.save_pretrained(
+                os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}"),
+                is_main_process=self.accelerator.is_main_process,
+                save_function=self.accelerator.save,
+            )
+            best_acc = acc
+        return best_acc
 
 
 def main():
@@ -179,15 +223,15 @@ def main():
     configs = json.load(config_file)
 
     # Initialize model, dataset, and tokenizer using configs
-    model = Model(configs)
+    model = Model(configs, "snli_pretrained_all")
     model.create_model_tokenizer()
     model.initialize_data()
+    print(f"Loaded {len(model.train_dataset)} train, {len(model.val_dataset)} val, and {len(model.test_dataset)} test data points")
+
 
     # Train model
     model.init_train_eval()
     model.train()
-    
-    print(f"Loaded {len(model.train_dataset)} train, {len(model.val_dataset)} val, and {len(model.test_dataset)} test data points")
 
 if __name__ == "__main__":
     main()
