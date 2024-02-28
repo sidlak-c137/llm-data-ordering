@@ -2,7 +2,6 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM, BitsAndBytesConfig
 from transformers import TrainingArguments, Trainer, get_scheduler, DataCollatorWithPadding, set_seed
 from datasets import load_dataset, Dataset
-import numpy as np
 import pandas as pd
 import evaluate
 from torch.utils.data import DataLoader
@@ -57,7 +56,7 @@ class Model():
         self.configs = configs
         self.name = name
         self.best_model_path = ""
-        self.train_metrics = {"step": [], "val_loss": [], "val_acc": []}
+        self.train_metrics = {"step": [], "train_loss": [], "val_loss": [], "val_acc": []}
         self.accelerator = Accelerator()
     
     def create_model_tokenizer(self):
@@ -147,7 +146,7 @@ class Model():
     
     def _compute_metrics(self, predictions, labels):
         metric = evaluate.load("accuracy")
-        predictions = torch.argmax(torch.tensor(predictions), dim=-1)
+        predictions = torch.argmax(predictions, dim=-1)
         return metric.compute(predictions=predictions, references=labels)["accuracy"]
 
     
@@ -165,6 +164,7 @@ class Model():
             progress_bar = tqdm(range(num_training_steps), disable=not self.accelerator.is_local_main_process)
             i = 0
             best_acc = 0
+            losses = []
             for epoch in range(num_epochs):
                 for batch in self.train_dl:
                     self.model_parallel.train()
@@ -175,13 +175,19 @@ class Model():
                     self.optimizer_parallel.step()
                     lr_scheduler.step()
                     self.optimizer_parallel.zero_grad()
+                    losses.append(self.accelerator.gather_for_metrics(loss).cpu().detach())
                     progress_bar.set_description(f"Training Loss: {loss.item()}")
                     progress_bar.update(1)
                     i += 1
                     # Evaluate on validation set
                     if i % self.configs["trainer_args"]["eval_every"] == 0:
                         self.accelerator.wait_for_everyone()
+                        losses = torch.concatenate(losses)
+                        losses = losses[:self.configs["trainer_args"]["eval_every"] * self.accelerator.state.num_processes * self.configs["trainer_args"]["batch_size"]]
+                        self.train_metrics["train_loss"].append(losses.mean().item())
+                        losses = []
                         best_acc = self._eval(best_acc, i)
+
 
     def _eval(self, best_acc, step):
         predictions = []
@@ -195,19 +201,19 @@ class Model():
                 loss = outputs.loss
                 eval_progress_bar.set_description(f"Eval Loss: {loss.item()}")
                 eval_progress_bar.update(1)
-                predictions.append(self.accelerator.gather_for_metrics(outputs.logits).cpu().numpy())
-                labels.append(self.accelerator.gather_for_metrics(eval_batch["labels"]).cpu().numpy())
-                losses.append(self.accelerator.gather_for_metrics(loss).cpu().numpy())
+                predictions.append(self.accelerator.gather_for_metrics(outputs.logits).cpu())
+                labels.append(self.accelerator.gather_for_metrics(eval_batch["labels"]).cpu())
+                losses.append(self.accelerator.gather_for_metrics(loss).cpu())
         
-        predictions = np.concatenate(predictions)
-        labels = np.concatenate(labels)
-        losses = np.concatenate(losses)
+        predictions = torch.concatenate(predictions)
+        labels = torch.concatenate(labels)
+        losses = torch.concatenate(losses)
         predictions = predictions[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         labels = labels[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         losses = losses[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
-        loss = losses.mean()
+        loss = losses.mean().item()
         self.accelerator.print(f"Evaluation Accuracy: {acc}, Evaluation Loss: {loss}")
         if self.accelerator.is_main_process:
             self.train_metrics["step"].append(step)
@@ -216,7 +222,7 @@ class Model():
 
         # Save model based on validation acc
         if acc > best_acc:
-            self.best_model_path = os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}")
+            self.best_model_path = os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}_{step}")
             self.accelerator.wait_for_everyone()
             unwrapped_model = self.accelerator.unwrap_model(self.model_parallel)
             unwrapped_model.save_pretrained(
@@ -225,9 +231,10 @@ class Model():
                 save_function=self.accelerator.save,
             )
             best_acc = acc
-            if self.accelerator.is_main_process:
-                df = pd.DataFrame.from_dict(self.train_metrics)
-                df.to_csv(os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}_metrics.csv"), index=False)
+
+        if self.accelerator.is_main_process:
+            df = pd.DataFrame.from_dict(self.train_metrics)
+            df.to_csv(os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}_metrics.csv"), index=False)
 
         return best_acc
     
@@ -266,19 +273,19 @@ class Model():
                 loss = outputs.loss
                 test_progress_bar.set_description(f"Test Loss: {loss.item()}")
                 test_progress_bar.update(1)
-                predictions.append(self.accelerator.gather_for_metrics(outputs.logits).cpu().numpy())
-                labels.append(self.accelerator.gather_for_metrics(test_batch["labels"]).cpu().numpy())
-                losses.append(self.accelerator.gather_for_metrics(loss).cpu().numpy())
+                predictions.append(self.accelerator.gather_for_metrics(outputs.logits).cpu())
+                labels.append(self.accelerator.gather_for_metrics(test_batch["labels"]).cpu())
+                losses.append(self.accelerator.gather_for_metrics(loss).cpu())
         
-        predictions = np.concatenate(predictions)
-        labels = np.concatenate(labels)
-        losses = np.concatenate(losses)
+        predictions = torch.concatenate(predictions)
+        labels = torch.concatenate(labels)
+        losses = torch.concatenate(losses)
         predictions = predictions[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
         labels = labels[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
         losses = losses[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
-        self.accelerator.print(f"Test Accuracy: {acc}, Test Loss: {losses.mean()}")
+        self.accelerator.print(f"Test Accuracy: {acc}, Test Loss: {losses.mean().item()}")
 
 
 def main():
