@@ -1,6 +1,6 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM, BitsAndBytesConfig
-from transformers import TrainingArguments, Trainer, get_scheduler, DataCollatorWithPadding
+from transformers import TrainingArguments, Trainer, get_scheduler, DataCollatorWithPadding, set_seed
 from datasets import load_dataset, Dataset
 import numpy as np
 import evaluate
@@ -160,7 +160,7 @@ class Model():
                 num_training_steps = num_training_steps
             )
             # Train and Evaluate
-            progress_bar = tqdm(range(num_training_steps))
+            progress_bar = tqdm(range(num_training_steps), disable=not self.accelerator.is_local_main_process)
             i = 0
             best_acc = 0
             for epoch in range(num_epochs):
@@ -178,12 +178,13 @@ class Model():
                     i += 1
                     # Evaluate on validation set
                     if i % self.configs["trainer_args"]["eval_every"] == 0:
+                        self.accelerator.wait_for_everyone()
                         best_acc = self._eval(best_acc)
 
     def _eval(self, best_acc):
         predictions = []
         labels = []
-        eval_progress_bar = tqdm(range(len(self.eval_dl)), leave=False)
+        eval_progress_bar = tqdm(range(len(self.eval_dl)), leave=False, disable=not self.accelerator.is_local_main_process)
         self.model_parallel.eval()
         for eval_batch in self.eval_dl:
             with torch.no_grad():
@@ -204,6 +205,7 @@ class Model():
         # Save model based on validation acc
         if acc > best_acc:
             self.best_model_path = os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}")
+            self.accelerator.wait_for_everyone()
             unwrapped_model = self.accelerator.unwrap_model(self.model_parallel)
             unwrapped_model.save_pretrained(
                 self.best_model_path,
@@ -240,7 +242,7 @@ class Model():
         predictions = []
         labels = []
         losses = []
-        test_progress_bar = tqdm(range(len(self.test_dl)), leave=False)
+        test_progress_bar = tqdm(range(len(self.test_dl)), leave=False, disable=not self.accelerator.is_local_main_process)
         self.model_parallel.eval()
         for test_batch in self.test_dl:
             with torch.no_grad():
@@ -265,6 +267,8 @@ class Model():
 
 
 def main():
+    torch.manual_seed(42)
+    set_seed(42)
     # Parse arguments
     parser = argparse.ArgumentParser(
         description="Script to finetune and evaluate TinyLlama model."
