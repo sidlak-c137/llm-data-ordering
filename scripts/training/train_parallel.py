@@ -3,6 +3,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Auto
 from transformers import TrainingArguments, Trainer, get_scheduler, DataCollatorWithPadding, set_seed
 from datasets import load_dataset, Dataset
 import numpy as np
+import pandas as pd
 import evaluate
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
@@ -56,6 +57,8 @@ class Model():
         self.configs = configs
         self.name = name
         self.best_model_path = ""
+        self.train_metrics = {"step": [], "val_loss": [], "val_acc": []}
+        self.accelerator = Accelerator()
     
     def create_model_tokenizer(self):
         bnb_config = None
@@ -113,14 +116,13 @@ class Model():
             self.train_dataset = SNLICartographyDataset(coordinates_path, train_snli, self.configs["num_train_samples"], self.tokenizer, False)
             self.val_dataset = SNLICartographyDataset(coordinates_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True)
             self.test_dataset = SNLICartographyDataset(coordinates_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True)
-            print(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points")
+            self.accelerator.print(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points")
         else:
             raise ValueError(f"Dataset {self.configs['dataset']} unsupported.")
     
     def init_train_eval(self):
         torch.manual_seed(42)
         torch.cuda.manual_seed(42)
-        self.accelerator = Accelerator()
         # Create Optimizer
         if self.configs["trainer_args"]["optim"] == "adamw_torch":
             self.optimizer = AdamW(
@@ -179,29 +181,39 @@ class Model():
                     # Evaluate on validation set
                     if i % self.configs["trainer_args"]["eval_every"] == 0:
                         self.accelerator.wait_for_everyone()
-                        best_acc = self._eval(best_acc)
+                        best_acc = self._eval(best_acc, i)
 
-    def _eval(self, best_acc):
+    def _eval(self, best_acc, step):
         predictions = []
         labels = []
+        losses = []
         eval_progress_bar = tqdm(range(len(self.eval_dl)), leave=False, disable=not self.accelerator.is_local_main_process)
         self.model_parallel.eval()
         for eval_batch in self.eval_dl:
             with torch.no_grad():
                 outputs = self.model_parallel(input_ids=eval_batch["input_ids"], attention_mask=eval_batch["attention_mask"], labels=eval_batch["labels"])
-                eval_progress_bar.set_description(f"Eval Loss: {outputs.loss.item()}")
+                loss = outputs.loss
+                eval_progress_bar.set_description(f"Eval Loss: {loss.item()}")
                 eval_progress_bar.update(1)
-                predictions.append(self.accelerator.gather(outputs.logits).cpu().numpy())
-                labels.append(self.accelerator.gather(eval_batch["labels"]).cpu().numpy())
+                predictions.append(self.accelerator.gather_for_metrics(outputs.logits).cpu().numpy())
+                labels.append(self.accelerator.gather_for_metrics(eval_batch["labels"]).cpu().numpy())
+                losses.append(self.accelerator.gather_for_metrics(loss).cpu().numpy())
         
         predictions = np.concatenate(predictions)
         labels = np.concatenate(labels)
+        losses = np.concatenate(losses)
         predictions = predictions[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         labels = labels[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
+        losses = losses[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
+        loss = losses.mean()
+        self.accelerator.print(f"Evaluation Accuracy: {acc}, Evaluation Loss: {loss}")
         if self.accelerator.is_main_process:
-            print(f"Evaluation Accuracy: {acc}")
+            self.train_metrics["step"].append(step)
+            self.train_metrics["val_acc"].append(acc)
+            self.train_metrics["val_loss"].append(loss)
+
         # Save model based on validation acc
         if acc > best_acc:
             self.best_model_path = os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}")
@@ -213,6 +225,10 @@ class Model():
                 save_function=self.accelerator.save,
             )
             best_acc = acc
+            if self.accelerator.is_main_process:
+                df = pd.DataFrame.from_dict(self.train_metrics)
+                df.to_csv(os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}_metrics.csv"), index=False)
+
         return best_acc
     
     def test(self):
@@ -250,9 +266,9 @@ class Model():
                 loss = outputs.loss
                 test_progress_bar.set_description(f"Test Loss: {loss.item()}")
                 test_progress_bar.update(1)
-                predictions.append(self.accelerator.gather(outputs.logits).cpu().numpy())
-                labels.append(self.accelerator.gather(test_batch["labels"]).cpu().numpy())
-                losses.append(self.accelerator.gather(loss).cpu().numpy())
+                predictions.append(self.accelerator.gather_for_metrics(outputs.logits).cpu().numpy())
+                labels.append(self.accelerator.gather_for_metrics(test_batch["labels"]).cpu().numpy())
+                losses.append(self.accelerator.gather_for_metrics(loss).cpu().numpy())
         
         predictions = np.concatenate(predictions)
         labels = np.concatenate(labels)
@@ -262,8 +278,7 @@ class Model():
         losses = losses[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
-        if self.accelerator.is_main_process:
-            print(f"Test Accuracy: {acc}, Test Loss: {losses.mean()}")
+        self.accelerator.print(f"Test Accuracy: {acc}, Test Loss: {losses.mean()}")
 
 
 def main():
