@@ -1,6 +1,8 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM, BitsAndBytesConfig
+import torch.nn.functional as F
+from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, AutoModelForCausalLM, BitsAndBytesConfig
 from transformers import TrainingArguments, Trainer, get_scheduler, DataCollatorWithPadding, set_seed
+from transformers.modeling_outputs import SequenceClassifierOutput
 from datasets import load_dataset, Dataset
 import pandas as pd
 import evaluate
@@ -71,7 +73,8 @@ class Model():
             )
         
         if self.configs["dataset"] == "snli":
-            self.model = AutoModelForSequenceClassification.from_pretrained(self.configs["model_name"], quantization_config=bnb_config, num_labels=3)
+            self.model_wrapper = AutoModelForSequenceClassificationWithLoss(self.configs)
+            self.model = self.model_wrapper.model
         elif self.configs["dataset"] == "gsm8k":
             self.model = AutoModelForCausalLM(self.configs["model_name"], quantization_config=bnb_config, device_map="auto")
         
@@ -141,7 +144,7 @@ class Model():
         )
 
         self.train_dl, self.eval_dl, self.model_parallel, self.optimizer_parallel = self.accelerator.prepare(
-            train_dataloader, eval_dataloader, self.model, self.optimizer
+            train_dataloader, eval_dataloader, self.model_wrapper, self.optimizer
         )
     
     def _compute_metrics(self, predictions, labels):
@@ -168,7 +171,7 @@ class Model():
             for epoch in range(num_epochs):
                 for batch in self.train_dl:
                     self.model_parallel.train()
-                    outputs = self.model_parallel(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
+                    outputs = self.model_parallel(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], hardnesses=batch["correctness"], steps=i/num_training_steps)
                     loss = outputs.loss
                     self.accelerator.backward(loss)
 
@@ -287,6 +290,36 @@ class Model():
         acc = self._compute_metrics(predictions, labels)
         self.accelerator.print(f"Test Accuracy: {acc}, Test Loss: {losses.mean().item()}")
 
+class AutoModelForSequenceClassificationWithLoss(torch.nn.Module):
+    def __init__(self, configs):
+        super(AutoModelForSequenceClassificationWithLoss, self).__init__()
+        self.configs = configs
+        bnb_config = None
+        if configs["architecture_args"]["quantized"] is not None:
+            bnb_config = BitsAndBytesConfig(
+                # load_in_4bit=True,
+                # bnb_4bit_use_double_quant=True,
+                # bnb_4bit_quant_type="nf4",
+                # bnb_4bit_compute_dtype=torch.float16
+                load_in_8bit=True,
+            )
+        self.model = AutoModelForSequenceClassification.from_pretrained(configs["model_name"], quantization_config=bnb_config, num_labels=3)
+
+    def forward(self, input_ids, attention_mask, labels, hardnesses=None, steps=1):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        if hardnesses is None:
+            return outputs
+        generated_labels = F.log_softmax(outputs.logits, dim=-1)
+        return SequenceClassifierOutput(loss=self._compute_loss(generated_labels, labels, hardnesses, steps), logits = outputs.logits, hidden_states=outputs.hidden_states, attentions=outputs.attentions)
+        
+    def _compute_loss(self, generated_labels, predicted_labels, hardnesses, steps):
+        loss_values = -generated_labels[range(predicted_labels.shape[0]), predicted_labels]
+        # TODO: change with hardness values
+        hardnesses = torch.ones_like(hardnesses)
+        
+        loss = torch.multiply(loss_values, hardnesses).mean()
+        # assert torch.isclose(loss, F.cross_entropy(generated_labels, predicted_labels)).item()
+        return loss
 
 def main():
     torch.manual_seed(42)
