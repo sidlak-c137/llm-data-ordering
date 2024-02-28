@@ -7,9 +7,9 @@
     },
     "dataset": "snli",
     "dataset_coordinates": "data/snli_data_map_coordinates.pickle",
-    "num_train_samples": 10000,
-    "num_val_samples": 1000,
-    "num_test_samples": 1000,
+    "num_train_samples": 100,
+    "num_val_samples": 20,
+    "num_test_samples": 20,
     "trainer_args": {
         "optim": "adamw_torch",
         "adam_beta1": 0.9,
@@ -24,7 +24,7 @@
         "load_best_model_at_end": true,
         "strategy": "epoch",
         "output_dir": "scripts/experiment_data/",
-        "eval_every": 1000
+        "eval_every": 10
     },
     "do_train": true
 }

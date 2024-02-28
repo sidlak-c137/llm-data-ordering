@@ -55,6 +55,7 @@ class Model():
     def __init__(self, configs, name):
         self.configs = configs
         self.name = name
+        self.best_model_path = ""
     
     def create_model_tokenizer(self):
         bnb_config = None
@@ -112,6 +113,7 @@ class Model():
             self.train_dataset = SNLICartographyDataset(coordinates_path, train_snli, self.configs["num_train_samples"], self.tokenizer, False)
             self.val_dataset = SNLICartographyDataset(coordinates_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True)
             self.test_dataset = SNLICartographyDataset(coordinates_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True)
+            print(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points")
         else:
             raise ValueError(f"Dataset {self.configs['dataset']} unsupported.")
     
@@ -131,10 +133,10 @@ class Model():
             raise ValueError(f"Dataset {self.configs['optim']} unsupported.")
         # TODO: Change these to use custom dataloaders
         train_dataloader = DataLoader(
-            self.train_dataset, shuffle=True, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator
+            self.train_dataset, shuffle=True, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator, drop_last=True
         )
         eval_dataloader = DataLoader(
-            self.val_dataset, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator
+            self.val_dataset, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator, drop_last=True
         )
 
         self.train_dl, self.eval_dl, self.model_parallel, self.optimizer_parallel = self.accelerator.prepare(
@@ -176,9 +178,9 @@ class Model():
                     i += 1
                     # Evaluate on validation set
                     if i % self.configs["trainer_args"]["eval_every"] == 0:
-                        best_acc = self.eval(best_acc)
+                        best_acc = self._eval(best_acc)
 
-    def eval(self, best_acc):
+    def _eval(self, best_acc):
         predictions = []
         labels = []
         eval_progress_bar = tqdm(range(len(self.eval_dl)), leave=False)
@@ -190,24 +192,76 @@ class Model():
                 eval_progress_bar.update(1)
                 predictions.append(self.accelerator.gather(outputs.logits).cpu().numpy())
                 labels.append(self.accelerator.gather(eval_batch["labels"]).cpu().numpy())
+        
         predictions = np.concatenate(predictions)
         labels = np.concatenate(labels)
-        predictions = predictions[:len(self.eval_dl.dataset)]
-        labels = labels[:len(self.eval_dl.dataset)]
+        predictions = predictions[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
+        labels = labels[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
         if self.accelerator.is_main_process:
             print(f"Evaluation Accuracy: {acc}")
         # Save model based on validation acc
         if acc > best_acc:
+            self.best_model_path = os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}")
             unwrapped_model = self.accelerator.unwrap_model(self.model_parallel)
             unwrapped_model.save_pretrained(
-                os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}"),
+                self.best_model_path,
                 is_main_process=self.accelerator.is_main_process,
                 save_function=self.accelerator.save,
             )
             best_acc = acc
         return best_acc
+    
+    def test(self):
+        bnb_config = None
+        if self.configs["architecture_args"]["quantized"] is not None:
+            bnb_config = BitsAndBytesConfig(
+                # load_in_4bit=True,
+                # bnb_4bit_use_double_quant=True,
+                # bnb_4bit_quant_type="nf4",
+                # bnb_4bit_compute_dtype=torch.float16
+                load_in_8bit=True,
+            )
+        
+        if self.configs["dataset"] == "snli":
+            self.model = AutoModelForSequenceClassification.from_pretrained(self.best_model_path, quantization_config=bnb_config, num_labels=3)
+        elif self.configs["dataset"] == "gsm8k":
+            self.model = AutoModelForCausalLM(self.best_model_path, quantization_config=bnb_config, device_map="auto")
+
+        test_dataloader = DataLoader(
+            self.test_dataset, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator, drop_last=True
+        )
+
+        self.test_dl, self.model_parallel = self.accelerator.prepare(
+            test_dataloader, self.model
+        )
+
+        predictions = []
+        labels = []
+        losses = []
+        test_progress_bar = tqdm(range(len(self.test_dl)), leave=False)
+        self.model_parallel.eval()
+        for test_batch in self.test_dl:
+            with torch.no_grad():
+                outputs = self.model_parallel(input_ids=test_batch["input_ids"], attention_mask=test_batch["attention_mask"], labels=test_batch["labels"])
+                loss = outputs.loss
+                test_progress_bar.set_description(f"Test Loss: {loss.item()}")
+                test_progress_bar.update(1)
+                predictions.append(self.accelerator.gather(outputs.logits).cpu().numpy())
+                labels.append(self.accelerator.gather(test_batch["labels"]).cpu().numpy())
+                losses.append(self.accelerator.gather(loss).cpu().numpy())
+        
+        predictions = np.concatenate(predictions)
+        labels = np.concatenate(labels)
+        losses = np.concatenate(losses)
+        predictions = predictions[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
+        labels = labels[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
+        losses = losses[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
+        # Compute metrics
+        acc = self._compute_metrics(predictions, labels)
+        if self.accelerator.is_main_process:
+            print(f"Test Accuracy: {acc}, Test Loss: {losses.mean()}")
 
 
 def main():
@@ -226,12 +280,13 @@ def main():
     model = Model(configs, "snli_pretrained_all")
     model.create_model_tokenizer()
     model.initialize_data()
-    print(f"Loaded {len(model.train_dataset)} train, {len(model.val_dataset)} val, and {len(model.test_dataset)} test data points")
-
 
     # Train model
     model.init_train_eval()
     model.train()
+
+    # Test model
+    model.test()
 
 if __name__ == "__main__":
     main()
