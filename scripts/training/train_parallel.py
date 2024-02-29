@@ -227,7 +227,7 @@ class Model():
         if acc > best_acc:
             self.best_model_path = os.path.join(self.configs["repo_path"], self.configs["trainer_args"]["output_dir"], f"{self.name}/model_{acc}_{step}")
             self.accelerator.wait_for_everyone()
-            unwrapped_model = self.accelerator.unwrap_model(self.model_parallel)
+            unwrapped_model = self.accelerator.unwrap_model(self.model_parallel).model
             unwrapped_model.save_pretrained(
                 self.best_model_path,
                 is_main_process=self.accelerator.is_main_process,
