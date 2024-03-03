@@ -1,0 +1,4 @@
+Lets go!
+Loaded 50000 train, 5000 val, and 5000 test data points
+(lost the data here but see snli_pretrained_all_metrics_baseline_3epochs.csv)
+Test Accuracy: 0.750801282051282, Test Loss: 0.6330583095550537
