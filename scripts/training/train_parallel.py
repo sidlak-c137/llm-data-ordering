@@ -18,22 +18,29 @@ from tqdm.auto import tqdm
 
 class SNLICartographyDataset(Dataset):
     hardnesses = None
-    def __init__(self, coordinates_path, dataset, limit, tokenizer, is_eval):
+    def __init__(self, coordinates_path, dataset, limit, tokenizer, is_eval, hardness_calc):
         self.dataset = dataset
         if SNLICartographyDataset.hardnesses is None:
             with open(coordinates_path, 'rb') as stream:
                 SNLICartographyDataset.hardnesses = pickle.load(stream)
         # Add hardnesses to train dataset
         if not is_eval:
-            new_cols = {"correctness": [], "confidence": [], "variability": []}
-            for item in dataset:
-                coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
-                new_cols["correctness"].append(coords["correctness"])
-                new_cols["confidence"].append(coords["confidence"])
-                new_cols["variability"].append(coords["variability"])
-            self.dataset = self.dataset.add_column("correctness", new_cols["correctness"])
-            self.dataset = self.dataset.add_column("confidence", new_cols["confidence"])
-            self.dataset = self.dataset.add_column("variability", new_cols["variability"])
+            hardness = []
+            if hardness_calc == "baseline":
+                for item in dataset:
+                    coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
+                    hardness.append(coords["correctness"]) # Some arbitrary column for baseline
+            elif hardness_calc == "variability":
+                for item in dataset:
+                    coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
+                    hardness.append(coords["variability"])
+                # min_hardness = min(hardness)
+                # max_hardenss = max(hardness)
+                # hardness = [(val - min_hardness) / (max_hardenss - min_hardness) for val in hardness]
+                # hardness = torch.div(torch.argsort(torch.tensor(hardness)), len(hardness)).tolist()
+            else:
+                raise ValueError(f"Hardness Calc {hardness_calc} unsupported.")
+            self.dataset = self.dataset.add_column("hardness", hardness)
         # Grab "limit" samples
         if limit > 0:
             self.dataset = self.dataset.shuffle(seed=42).select(range(limit))
@@ -77,6 +84,8 @@ class Model():
             self.model = self.model_wrapper.model
         elif self.configs["dataset"] == "gsm8k":
             self.model = AutoModelForCausalLM(self.configs["model_name"], quantization_config=bnb_config, device_map="auto")
+        else:
+            raise ValueError(f"Dataset {self.configs['dataset']} unsupported.")
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.configs["model_name"])
         self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
@@ -115,9 +124,9 @@ class Model():
             test_snli = load_dataset(self.configs["dataset"], split="test")
             test_snli = test_snli.filter(lambda sample: sample["label"] != -1)
             coordinates_path = os.path.join(self.configs["repo_path"], self.configs["dataset_coordinates"])
-            self.train_dataset = SNLICartographyDataset(coordinates_path, train_snli, self.configs["num_train_samples"], self.tokenizer, False)
-            self.val_dataset = SNLICartographyDataset(coordinates_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True)
-            self.test_dataset = SNLICartographyDataset(coordinates_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True)
+            self.train_dataset = SNLICartographyDataset(coordinates_path, train_snli, self.configs["num_train_samples"], self.tokenizer, False, self.configs["hardness_calc"])
+            self.val_dataset = SNLICartographyDataset(coordinates_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True, self.configs["hardness_calc"])
+            self.test_dataset = SNLICartographyDataset(coordinates_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True, self.configs["hardness_calc"])
             self.accelerator.print(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points")
         else:
             raise ValueError(f"Dataset {self.configs['dataset']} unsupported.")
@@ -171,7 +180,7 @@ class Model():
             for epoch in range(num_epochs):
                 for batch in self.train_dl:
                     self.model_parallel.train()
-                    outputs = self.model_parallel(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], hardnesses=batch["correctness"], steps=i/num_training_steps)
+                    outputs = self.model_parallel(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], hardnesses=batch["hardness"], steps=i/num_training_steps)
                     loss = outputs.loss
                     self.accelerator.backward(loss)
 
@@ -219,7 +228,7 @@ class Model():
         loss = losses.mean().item()
         self.accelerator.print(f"Evaluation Accuracy: {acc}, Evaluation Loss: {loss}")
         if self.accelerator.is_main_process:
-            self.train_metrics["step"].append(step)
+            self.train_metrics["step"].append(step * self.accelerator.state.num_processes)
             self.train_metrics["val_acc"].append(acc)
             self.train_metrics["val_loss"].append(loss)
 
@@ -314,8 +323,15 @@ class AutoModelForSequenceClassificationWithLoss(torch.nn.Module):
         
     def _compute_loss(self, generated_labels, predicted_labels, hardnesses, steps):
         loss_values = -generated_labels[range(predicted_labels.shape[0]), predicted_labels]
-        # TODO: change with hardness values
-        hardnesses = torch.ones_like(hardnesses)
+        if self.configs["loss_calc"] == "baseline":
+            hardnesses = torch.ones_like(hardnesses)
+        elif self.configs["loss_calc"] == "triangle":
+            hardnesses = ((2 * hardnesses - 1) * (steps - 1)) + 1
+        elif self.configs["loss_calc"] == "crazy":
+            hardnesses = (1.5 - 5 * (0.5 - hardnesses)) / (steps + 0.2) + 1
+            hardnesses[hardnesses <= 0.0] = 0.0
+        else:
+            raise ValueError(f"Loss Calc {self.configs['loss_calc']} unsupported.")
         
         loss = torch.multiply(loss_values, hardnesses).mean()
         # assert torch.isclose(loss, F.cross_entropy(generated_labels, predicted_labels)).item()
@@ -336,7 +352,7 @@ def main():
     configs = json.load(config_file)
 
     # Initialize model, dataset, and tokenizer using configs
-    model = Model(configs, "snli_pretrained_all")
+    model = Model(configs, "snli_triangle_variability")
     model.create_model_tokenizer()
     model.initialize_data()
 

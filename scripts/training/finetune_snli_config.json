@@ -1,6 +1,8 @@
 {
     "repo_path": "/gscratch/ml4ml/sidlak/cse517-final-project",
     "model_name": "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
+    "hardness_calc": "variability",
+    "loss_calc": "crazy",
     "architecture_args": {
         "unfrozen_layers": ["score"],
         "quantized": null
@@ -24,7 +26,7 @@
         "load_best_model_at_end": true,
         "strategy": "epoch",
         "output_dir": "scripts/experiment_data/",
-        "eval_every": 500
+        "eval_every": 200
     },
     "do_train": true
 }
