@@ -59,6 +59,45 @@ class SNLICartographyDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+class SNLINgramPerplexityDataset(Dataset):
+    def __init__(self, coordinates_path, dataset, limit, tokenizer, is_eval):
+        self.dataset = dataset
+        self.pair_map = {}
+        if len(self.pair_map) == 0:
+            # read the file into a map of (premise, hypothesis) -> perplexity
+            with open(coordinates_path, 'r') as file:
+                for line in file:
+                    json_obj = json.loads(line)
+                    key = (json_obj['premise'], json_obj['hypothesis'])
+                    self.pair_map[key] = json_obj['perplexity']
+        
+        # hardness is only neeeded for train set
+        if not is_eval:
+            hardness = []
+            for item in dataset:
+                key = (item["premise"], item["hypothesis"])
+                val = self.pair_map.get(key, None)
+                assert val is not None, f"couldn't find key: {key}"
+                hardness.append(self.pair_map.get(key))
+        self.dataset = self.dataset.add_column("hardness", hardness)
+        if limit > 0:
+            self.dataset = self.dataset.shuffle(seed=42).select(range(limit))
+        else:
+            self.dataset = self.dataset.shuffle(seed=42)
+            
+        # Tokenize
+        def tokenize(examples):
+            return tokenizer(examples["premise"], examples["hypothesis"], padding="max_length", truncation=True, max_length=512, return_tensors="pt")
+        self.dataset = self.dataset.map(tokenize, batched=True)
+        self.dataset = self.dataset.remove_columns(["premise", "hypothesis"])
+        self.dataset.set_format("torch")
+            
+    def __getitem__(self, index):
+        return self.dataset[index]
+    
+    def __len__(self):
+        return len(self.dataset)
+
         
 class Model():
     def __init__(self, configs, name):
