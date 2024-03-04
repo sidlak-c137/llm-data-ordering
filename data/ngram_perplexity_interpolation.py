@@ -150,17 +150,18 @@ class TrigramModel(object):
     
 
 # TODO: adding support for gsm8k dataset
+# 549366
 def main():
   # Load the data
   dataset = load_dataset("snli", split="train")
+  # Exclude entries where label=-1, concatenate
+  dataset.filter(lambda sample: sample["label"] != -1)
+  
   premise = dataset['premise']
   hypothesis = dataset['hypothesis']
-  labels = dataset['label']
-
-  # Exclude entries where label=-1, concatenate
-  premise = [a for a, b in zip(premise, labels) if b != -1]
-  hypothesis = [a for a, b in zip(hypothesis, labels) if b != -1]
   train_set = [i + " " + j for i, j in zip(premise, hypothesis)]
+  
+  print(len(train_set))
   
 
   trigram_model = TrigramModel(train_set=train_set)
