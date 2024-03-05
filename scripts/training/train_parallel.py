@@ -34,6 +34,10 @@ class SNLICartographyDataset(Dataset):
                 for item in dataset:
                     coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
                     hardness.append(coords["variability"])
+            elif hardness_calc == "variability":
+                for item in dataset:
+                    coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
+                    hardness.append(coords["variability"])
                 # min_hardness = min(hardness)
                 # max_hardenss = max(hardness)
                 # hardness = [(val - min_hardness) / (max_hardenss - min_hardness) for val in hardness]
@@ -166,12 +170,12 @@ class Model():
         if self.configs["do_train"]:
             num_epochs = self.configs["trainer_args"]["num_train_epochs"]
             num_training_steps = num_epochs * len(self.train_dl)
-            lr_scheduler = get_scheduler(
-                self.configs["trainer_args"]["lr_scheduler_type"],
-                optimizer = self.optimizer_parallel,
-                num_warmup_steps = self.configs["trainer_args"]["num_warmup_steps"],
-                num_training_steps = num_training_steps
-            )
+            # lr_scheduler = get_scheduler(
+            #     self.configs["trainer_args"]["lr_scheduler_type"],
+            #     optimizer = self.optimizer_parallel,
+            #     num_warmup_steps = self.configs["trainer_args"]["num_warmup_steps"],
+            #     num_training_steps = num_training_steps
+            # )
             # Train and Evaluate
             progress_bar = tqdm(range(num_training_steps), disable=not self.accelerator.is_local_main_process)
             i = 0
@@ -185,7 +189,7 @@ class Model():
                     self.accelerator.backward(loss)
 
                     self.optimizer_parallel.step()
-                    lr_scheduler.step()
+                    # lr_scheduler.step()
                     self.optimizer_parallel.zero_grad()
                     losses.append(self.accelerator.gather_for_metrics(loss).cpu().detach())
                     progress_bar.set_description(f"Training Loss: {loss.item()}")
@@ -329,7 +333,6 @@ class AutoModelForSequenceClassificationWithLoss(torch.nn.Module):
             hardnesses = ((2 * hardnesses - 1) * (steps - 1)) + 1
         elif self.configs["loss_calc"] == "crazy":
             hardnesses = (1.5 - 5 * (0.5 - hardnesses)) / (steps + 0.2) + 1
-            hardnesses[hardnesses <= 0.0] = 0.0
         else:
             raise ValueError(f"Loss Calc {self.configs['loss_calc']} unsupported.")
         

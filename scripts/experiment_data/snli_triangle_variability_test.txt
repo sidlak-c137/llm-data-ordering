@@ -1,0 +1,18 @@
+Lets go!
+Loaded 50000 train, 5000 val, and 5000 test data points
+Evaluation Accuracy: 0.6033653846153846, Evaluation Loss: 0.894920825958252
+Evaluation Accuracy: 0.6282051282051282, Evaluation Loss: 0.8250970840454102
+Evaluation Accuracy: 0.6338141025641025, Evaluation Loss: 0.8012391924858093
+Evaluation Accuracy: 0.686698717948718, Evaluation Loss: 0.7352555394172668
+Evaluation Accuracy: 0.6370192307692307, Evaluation Loss: 0.7707735896110535
+Evaluation Accuracy: 0.7219551282051282, Evaluation Loss: 0.700921356678009
+Evaluation Accuracy: 0.7011217948717948, Evaluation Loss: 0.7221748232841492
+Evaluation Accuracy: 0.6979166666666666, Evaluation Loss: 0.6943756937980652
+Evaluation Accuracy: 0.7219551282051282, Evaluation Loss: 0.6614865064620972
+Evaluation Accuracy: 0.7043269230769231, Evaluation Loss: 0.6837280988693237
+Evaluation Accuracy: 0.7035256410256411, Evaluation Loss: 0.6904610395431519
+Evaluation Accuracy: 0.7011217948717948, Evaluation Loss: 0.6817835569381714
+Evaluation Accuracy: 0.7139423076923077, Evaluation Loss: 0.6743914484977722
+Evaluation Accuracy: 0.7331730769230769, Evaluation Loss: 0.6570889353752136
+Evaluation Accuracy: 0.7371794871794872, Evaluation Loss: 0.6528812050819397
+Test Accuracy: 0.7363782051282052, Test Loss: 0.6530272364616394
