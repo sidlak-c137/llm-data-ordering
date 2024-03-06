@@ -34,14 +34,13 @@ class SNLICartographyDataset(Dataset):
                 for item in dataset:
                     coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
                     hardness.append(coords["variability"])
-            elif hardness_calc == "variability":
+            elif hardness_calc == "variability_even_scaling":
                 for item in dataset:
                     coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
                     hardness.append(coords["variability"])
-                # min_hardness = min(hardness)
-                # max_hardenss = max(hardness)
-                # hardness = [(val - min_hardness) / (max_hardenss - min_hardness) for val in hardness]
-                # hardness = torch.div(torch.argsort(torch.tensor(hardness)), len(hardness)).tolist()
+                min_hardness = min(hardness)
+                max_hardenss = max(hardness)
+                hardness = [(val - min_hardness) / (max_hardenss - min_hardness) for val in hardness]
             else:
                 raise ValueError(f"Hardness Calc {hardness_calc} unsupported.")
             self.dataset = self.dataset.add_column("hardness", hardness)
@@ -394,7 +393,7 @@ def main():
     configs = json.load(config_file)
 
     # Initialize model, dataset, and tokenizer using configs
-    model = Model(configs, "snli_triangle_variability")
+    model = Model(configs, "snli_triangle_scaled_variability")
     model.create_model_tokenizer()
     model.initialize_data()
 
