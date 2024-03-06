@@ -41,6 +41,10 @@ class SNLICartographyDataset(Dataset):
                 min_hardness = min(hardness)
                 max_hardenss = max(hardness)
                 hardness = [(val - min_hardness) / (max_hardenss - min_hardness) for val in hardness]
+            elif hardness_calc == "confidence":
+                for item in dataset:
+                    coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
+                    hardness.append(1 - coords["confidence"])
             elif hardness_calc == "confidence_even_scaling":
                 for item in dataset:
                     coords = SNLICartographyDataset.hardnesses[(item["premise"], item["hypothesis"])]
@@ -400,7 +404,7 @@ def main():
     configs = json.load(config_file)
 
     # Initialize model, dataset, and tokenizer using configs
-    model = Model(configs, "snli_triangle_even_scaled_confidence")
+    model = Model(configs, "snli_triangle_confidence")
     model.create_model_tokenizer()
     model.initialize_data()
 
