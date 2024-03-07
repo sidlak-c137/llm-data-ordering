@@ -1,0 +1,23 @@
+Lets go!
+no warm up steps, no lr scheduler, snli ordered data baseline - decreasing variability
+Loaded 50000 train, 5000 val, and 5000 test data points
+train set, init values: tensor([0.4951, 0.4927, 0.4759, 0.4720, 0.4708, 0.4702, 0.4692, 0.4659, 0.4638,
+        0.4613])
+train set, end values: tensor([0.0002, 0.0002, 0.0002, 0.0002, 0.0002, 0.0002, 0.0002, 0.0002, 0.0001,
+        0.0001])
+Evaluation Accuracy: 0.3654, Evaluation Loss: 1.2578356266021729
+Evaluation Accuracy: 0.4762, Evaluation Loss: 1.0593347549438477
+Evaluation Accuracy: 0.473, Evaluation Loss: 1.034051775932312
+Evaluation Accuracy: 0.5558, Evaluation Loss: 0.9827871322631836
+Evaluation Accuracy: 0.6326, Evaluation Loss: 0.8180291652679443
+Evaluation Accuracy: 0.6516, Evaluation Loss: 0.7955524921417236
+Evaluation Accuracy: 0.6282, Evaluation Loss: 0.848875880241394
+Evaluation Accuracy: 0.6746, Evaluation Loss: 0.785209596157074
+Evaluation Accuracy: 0.6666, Evaluation Loss: 0.7932068109512329
+Evaluation Accuracy: 0.6992, Evaluation Loss: 0.7173840999603271
+Evaluation Accuracy: 0.6556, Evaluation Loss: 0.8416063189506531
+Evaluation Accuracy: 0.675, Evaluation Loss: 0.7871281504631042
+Evaluation Accuracy: 0.6628, Evaluation Loss: 0.8471745252609253
+Evaluation Accuracy: 0.5528, Evaluation Loss: 1.3850144147872925
+Evaluation Accuracy: 0.4206, Evaluation Loss: 2.59511399269104
+Test Accuracy: 0.7034, Test Loss: 0.7271225452423096

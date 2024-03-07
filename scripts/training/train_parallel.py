@@ -73,6 +73,12 @@ class SNLICartographyDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+    def sort_by_hardness(self, order="increasing"):
+        if order == "increasing":
+            self.dataset = self.dataset.sort('hardness')
+        elif order == "decreasing":
+            self.dataset = self.dataset.sort('hardness', reverse=True)
+
 class SNLINgramPerplexityDataset(Dataset):
     def __init__(self, coordinates_path, dataset, limit, tokenizer, is_eval):
         self.dataset = dataset
@@ -111,6 +117,12 @@ class SNLINgramPerplexityDataset(Dataset):
     
     def __len__(self):
         return len(self.dataset)
+    
+    def sort_by_hardness(self, order="increasing"):
+        if order == "increasing":
+            self.dataset = self.dataset.sort('hardness')
+        elif order == "decreasing":
+            self.dataset = self.dataset.sort('hardness', reverse=True)
 
         
 class Model():
@@ -181,6 +193,13 @@ class Model():
             self.val_dataset = SNLICartographyDataset(coordinates_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True, self.configs["hardness_calc"])
             self.test_dataset = SNLICartographyDataset(coordinates_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True, self.configs["hardness_calc"])
             self.accelerator.print(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points")
+        
+            # sort train set if using ordered data
+            if self.configs["data_order"] is not None:
+                self.train_dataset.sort_by_hardness(self.configs["data_order"])
+                # sanity check first and last values to check for sorting
+                print(f"train set, init values: {self.train_dataset['hardness'][:10]}")
+                print(f"train set, end values: {self.train_dataset['hardness'][-10:]}")
         else:
             raise ValueError(f"Dataset {self.configs['dataset']} unsupported.")
     
@@ -197,10 +216,16 @@ class Model():
             )
         else:
             raise ValueError(f"Dataset {self.configs['optim']} unsupported.")
-        # TODO: Change these to use custom dataloaders
-        train_dataloader = DataLoader(
-            self.train_dataset, shuffle=True, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator, drop_last=True
-        )
+        
+        if self.configs["data_order"] is not None:
+            train_dataloader = DataLoader(
+                self.train_dataset, shuffle=False, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator, drop_last=True
+            )
+        else:
+            train_dataloader = DataLoader(
+                self.train_dataset, shuffle=True, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator, drop_last=True
+            )
+        
         eval_dataloader = DataLoader(
             self.val_dataset, batch_size=self.configs["trainer_args"]["batch_size"], collate_fn=self.data_collator, drop_last=True
         )
@@ -247,7 +272,8 @@ class Model():
                     # Evaluate on validation set
                     if i % self.configs["trainer_args"]["eval_every"] == 0:
                         self.accelerator.wait_for_everyone()
-                        losses = torch.concatenate(losses)
+                        # only concatenate values from different processes if > 1 process
+                        losses = torch.concatenate(losses) if self.accelerator.state.num_processes != 1 else torch.tensor(losses)
                         losses = losses[:self.configs["trainer_args"]["eval_every"] * self.accelerator.state.num_processes * self.configs["trainer_args"]["batch_size"]]
                         self.train_metrics["train_loss"].append(losses.mean().item())
                         losses = []
@@ -270,9 +296,9 @@ class Model():
                 labels.append(self.accelerator.gather_for_metrics(eval_batch["labels"]).cpu())
                 losses.append(self.accelerator.gather_for_metrics(loss).cpu())
         
-        predictions = torch.concatenate(predictions)
+        predictions = torch.concatenate(predictions) 
         labels = torch.concatenate(labels)
-        losses = torch.concatenate(losses)
+        losses = torch.concatenate(losses) if self.accelerator.state.num_processes != 1 else torch.tensor(losses)
         predictions = predictions[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         labels = labels[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
         losses = losses[:len(self.eval_dl) * self.configs["trainer_args"]["batch_size"]]
@@ -344,7 +370,7 @@ class Model():
         
         predictions = torch.concatenate(predictions)
         labels = torch.concatenate(labels)
-        losses = torch.concatenate(losses)
+        losses = torch.concatenate(losses) if self.accelerator.state.num_processes != 1 else torch.tensor(losses)
         predictions = predictions[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
         labels = labels[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
         losses = losses[:len(self.test_dl) * self.configs["trainer_args"]["batch_size"]]
@@ -404,7 +430,7 @@ def main():
     configs = json.load(config_file)
 
     # Initialize model, dataset, and tokenizer using configs
-    model = Model(configs, "snli_triangle_confidence")
+    model = Model(configs, configs['experiment_name'])
     model.create_model_tokenizer()
     model.initialize_data()
 
@@ -417,5 +443,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
