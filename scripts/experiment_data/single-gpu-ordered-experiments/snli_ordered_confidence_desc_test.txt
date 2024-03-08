@@ -1,0 +1,23 @@
+Lets go!
+Training with ordered data...
+Loaded 50000 train, 5000 val, and 5000 test data points
+train set, init values: tensor([0.9990, 0.9990, 0.9989, 0.9989, 0.9989, 0.9989, 0.9988, 0.9986, 0.9986,
+        0.9985])
+train set, end values: tensor([0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0003,
+        0.0003])
+Evaluation Accuracy: 0.3518, Evaluation Loss: 1.287940502166748
+Evaluation Accuracy: 0.3598, Evaluation Loss: 1.463871717453003
+Evaluation Accuracy: 0.5072, Evaluation Loss: 1.0269100666046143
+Evaluation Accuracy: 0.4092, Evaluation Loss: 1.2338783740997314
+Evaluation Accuracy: 0.4748, Evaluation Loss: 1.2223702669143677
+Evaluation Accuracy: 0.5836, Evaluation Loss: 0.9035980701446533
+Evaluation Accuracy: 0.5404, Evaluation Loss: 1.1868746280670166
+Evaluation Accuracy: 0.6776, Evaluation Loss: 0.7640566229820251
+Evaluation Accuracy: 0.4694, Evaluation Loss: 1.490471601486206
+Evaluation Accuracy: 0.6564, Evaluation Loss: 0.8187241554260254
+Evaluation Accuracy: 0.6382, Evaluation Loss: 0.9121084213256836
+Evaluation Accuracy: 0.5886, Evaluation Loss: 1.2030454874038696
+Evaluation Accuracy: 0.504, Evaluation Loss: 3.2420573234558105
+Evaluation Accuracy: 0.3334, Evaluation Loss: 9.786134719848633
+Evaluation Accuracy: 0.3322, Evaluation Loss: 14.733390808105469
+Test Accuracy: 0.68, Test Loss: 0.7732430696487427
