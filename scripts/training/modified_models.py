@@ -35,6 +35,8 @@ class AutoModelForSequenceClassificationWithLoss(torch.nn.Module):
             hardnesses = torch.ones_like(hardnesses)
         elif self.configs["loss_calc"] == "triangle":
             hardnesses = ((2 * hardnesses - 1) * (steps - 1)) + 1
+        elif self.configs["loss_calc"] == "inv_triangle":
+            hardnesses = ((1 - 2 * hardnesses) * steps) + 2 * hardnesses
         elif self.configs["loss_calc"] == "crazy":
             hardnesses = (1.5 - 5 * (0.5 - hardnesses)) / (steps + 0.2) + 1
         else:

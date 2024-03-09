@@ -81,15 +81,16 @@ class Model():
             test_snli = load_dataset(self.configs["dataset"], split="test")
             test_snli = test_snli.filter(lambda sample: sample["label"] != -1)
             coordinates_path = os.path.join(self.configs["repo_path"], self.configs["dataset_coordinates"])
+            ngram_path = os.path.join(self.configs["repo_path"], self.configs["dataset_ngram_path"])
             
             if self.configs["hardness_calc"] in DATA_MAP_HARDNESSES:
                 self.train_dataset = SNLICartographyDataset(coordinates_path, train_snli, self.configs["num_train_samples"], self.tokenizer, False, self.configs["hardness_calc"])
                 self.val_dataset = SNLICartographyDataset(coordinates_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True, self.configs["hardness_calc"])
                 self.test_dataset = SNLICartographyDataset(coordinates_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True, self.configs["hardness_calc"])
             elif self.configs["hardness_calc"] == "ngram_perplexity":
-                self.train_dataset = SNLINgramPerplexityDataset(coordinates_path, train_snli, self.configs["num_train_samples"], self.tokenizer, False)
-                self.val_dataset = SNLINgramPerplexityDataset(coordinates_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True)
-                self.test_dataset = SNLINgramPerplexityDataset(coordinates_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True)
+                self.train_dataset = SNLINgramPerplexityDataset(ngram_path, train_snli, self.configs["num_train_samples"], self.tokenizer, False)
+                self.val_dataset = SNLINgramPerplexityDataset(ngram_path, val_snli, self.configs["num_val_samples"], self.tokenizer, True)
+                self.test_dataset = SNLINgramPerplexityDataset(ngram_path, test_snli, self.configs["num_test_samples"], self.tokenizer, True)
             
             self.accelerator.print(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points")
         

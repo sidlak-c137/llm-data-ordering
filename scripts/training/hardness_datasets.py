@@ -1,5 +1,5 @@
 from datasets import Dataset
-import json
+import pandas as pd
 import pickle
 
 """
@@ -75,11 +75,10 @@ class SNLINgramPerplexityDataset(Dataset):
         self.pair_map = {}
         if len(self.pair_map) == 0:
             # read the file into a map of (premise, hypothesis) -> perplexity
-            with open(coordinates_path, 'r') as file:
-                for line in file:
-                    json_obj = json.loads(line)
-                    key = (json_obj['premise'], json_obj['hypothesis'])
-                    self.pair_map[key] = json_obj['perplexity']
+            df = pd.read_json(path_or_buf=coordinates_path, lines=True)
+            for _, line in df.iterrows():
+                key = (line['premise'], line['hypothesis'])
+                self.pair_map[key] = line['perplexity']
         
         # hardness is only neeeded for train set
         if not is_eval:
@@ -89,6 +88,9 @@ class SNLINgramPerplexityDataset(Dataset):
                 val = self.pair_map.get(key, None)
                 assert val is not None, f"couldn't find key: {key}"
                 hardness.append(self.pair_map.get(key))
+            min_hardness = min(hardness)
+            max_hardenss = max(hardness)
+            hardness = [(val - min_hardness) / (max_hardenss - min_hardness) for val in hardness]
             self.dataset = self.dataset.add_column("hardness", hardness)
         if limit > 0:
             self.dataset = self.dataset.shuffle(seed=42).select(range(limit))
