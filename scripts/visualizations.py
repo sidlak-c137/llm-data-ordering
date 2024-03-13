@@ -370,12 +370,12 @@ def main():
     set_seed(42)
     ordered_fpaths = [
         'scripts/experiment_data/single-gpu-ordered-experiments/snli_random_baseline_metrics.csv',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_desc_confidence_metrics.csv',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_inc_confidence_metrics.csv',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_desc_perplexity_metrics.csv',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_inc_perplexity_metrics.csv',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_desc_variability_metrics.csv',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_inc_variability_metrics.csv'
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_decreasing_confidence_metrics.csv',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_increasing_confidence_metrics.csv',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_decreasing_perplexity_metrics.csv',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_increasing_perplexity_metrics.csv',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_decreasing_variability_metrics.csv',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_increasing_variability_metrics.csv'
     ]
     multi_fpaths = [
         'scripts/experiment_data/multi-gpu-experiments/snli_inv-triangle_confidence_metrics.csv',
@@ -393,12 +393,12 @@ def main():
 
     ordered_fpaths_test = [
         'scripts/experiment_data/single-gpu-ordered-experiments/snli_random_baseline_test.txt',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_desc_confidence_test.txt',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_inc_confidence_test.txt',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_desc_perplexity_test.txt',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_inc_perplexity_test.txt',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_desc_variability_test.txt',
-        'scripts/experiment_data/single-gpu-ordered-experiments/snli_inc_variability_test.txt'
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_decreasing_confidence_test.txt',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_increasing_confidence_test.txt',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_decreasing_perplexity_test.txt',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_increasing_perplexity_test.txt',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_decreasing_variability_test.txt',
+        'scripts/experiment_data/single-gpu-ordered-experiments/snli_increasing_variability_test.txt'
     ]
     multi_fpaths_test = [
         'scripts/experiment_data/multi-gpu-experiments/snli_inv-triangle_confidence_test.txt',
