@@ -1,0 +1,19 @@
+Lets go!
+no warm up steps, baseline
+Loaded 50000 train, 5000 val, and 5000 test data points
+Evaluation Accuracy: 0.6017628205128205, Evaluation Loss: 0.8997093439102173
+Evaluation Accuracy: 0.6009615384615384, Evaluation Loss: 0.8546872138977051
+Evaluation Accuracy: 0.6354166666666666, Evaluation Loss: 0.8034721612930298
+Evaluation Accuracy: 0.6899038461538461, Evaluation Loss: 0.7377653121948242
+Evaluation Accuracy: 0.6314102564102564, Evaluation Loss: 0.7763171195983887
+Evaluation Accuracy: 0.7211538461538461, Evaluation Loss: 0.70481938123703
+Evaluation Accuracy: 0.7075320512820513, Evaluation Loss: 0.7185220718383789
+Evaluation Accuracy: 0.6947115384615384, Evaluation Loss: 0.7007452249526978
+Evaluation Accuracy: 0.7235576923076923, Evaluation Loss: 0.6656637191772461
+Evaluation Accuracy: 0.7035256410256411, Evaluation Loss: 0.682492733001709
+Evaluation Accuracy: 0.7067307692307693, Evaluation Loss: 0.6855594515800476
+Evaluation Accuracy: 0.7011217948717948, Evaluation Loss: 0.6825474500656128
+Evaluation Accuracy: 0.71875, Evaluation Loss: 0.6720041036605835
+Evaluation Accuracy: 0.7331730769230769, Evaluation Loss: 0.6600433588027954
+Evaluation Accuracy: 0.7331730769230769, Evaluation Loss: 0.6553523540496826
+Test Accuracy: 0.7235576923076923, Test Loss: 0.6593202352523804
