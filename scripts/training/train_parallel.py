@@ -24,10 +24,15 @@ class Model:
     def __init__(self, configs):
         self.configs = configs
         if self.configs["data_order"] is None:
-            self.name = f"{self.configs["dataset"]}_{self.configs["loss_calc"]}_{self.configs["hardness_calc"]}"
+            self.name = f"{self.configs['dataset']}_{self.configs['loss_calc']}_{self.configs['hardness_calc']}"
         else:
-            self.name = f"{self.configs["dataset"]}_{self.configs["data_order"]}_{self.configs["hardness_calc"]}_{self.configs["data_order"]}"
+            self.name = f"{self.configs['dataset']}_{self.configs['data_order']}_{self.configs['hardness_calc']}_{self.configs['data_order']}"
         self.best_model_path = ""
+        self.output_path = os.path.join(
+            self.configs["repo_path"],
+            self.configs["trainer_args"]["output_dir"],
+            f"{self.name}_test.txt",
+        )
         self.train_metrics = {
             "step": [],
             "train_loss": [],
@@ -150,7 +155,7 @@ class Model:
                 raise ValueError(f"Hardness Calc {hardness_calc} unsupported.")
 
             if self.accelerator.is_main_process:
-                with open(f"{self.name}_test.txt", "w") as f:
+                with open(self.output_path, "w") as f:
                     f.write(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points\n")
 
             # sort train set if using ordered data
@@ -311,7 +316,7 @@ class Model:
         acc = self._compute_metrics(predictions, labels)
         loss = losses.mean().item()
         if self.accelerator.is_main_process:
-            with open(f"{self.name}_test.txt", "a") as f:
+            with open(self.output_path, "a") as f:
                 f.write(f"Evaluation Accuracy: {acc}, Evaluation Loss: {loss}\n")
         if self.accelerator.is_main_process:
             self.train_metrics["step"].append(
@@ -426,7 +431,7 @@ class Model:
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
         if self.accelerator.is_main_process:
-            with open(f"{self.name}_test.txt", "a") as f:
+            with open(self.output_path, "a") as f:
                 f.write(f"Test Accuracy: {acc}, Test Loss: {losses.mean().item()}\n")
 
 

@@ -14,11 +14,27 @@ Modified model wrappers to modify HuggingFace models so loss calculations can be
 
 
 class AutoModelForSequenceClassificationWithLoss(torch.nn.Module):
-    hardness_calcs = {
-        "baseline": _update_hardnesses_baseline,
-        "triangle": _update_hardnesses_triangle,
-        "inv-triangle": _update_hardnesses_inv_triangle,
-        "crazy": _update_hardnesses_crazy,
+    @staticmethod
+    def _update_hardnesses_baseline(hardnesses, steps):
+        return torch.ones_like(hardnesses)
+
+    @staticmethod
+    def _update_hardnesses_triangle(hardnesses, steps):
+        return ((2 * hardnesses - 1) * (steps - 1)) + 1
+
+    @staticmethod
+    def _update_hardnesses_inv_triangle(hardnesses, steps):
+        return ((1 - 2 * hardnesses) * steps) + 2 * hardnesses
+
+    @staticmethod
+    def _update_hardnesses_crazy(hardnesses, steps):
+        return (1.5 - 5 * (0.5 - hardnesses)) / (steps + 0.2) + 1
+
+    loss_calcs = {
+        "baseline": _update_hardnesses_baseline.__get__(object),
+        "triangle": _update_hardnesses_triangle.__get__(object),
+        "inv-triangle": _update_hardnesses_inv_triangle.__get__(object),
+        "crazy": _update_hardnesses_crazy.__get__(object),
     }
 
     def __init__(self, configs):
@@ -55,25 +71,9 @@ class AutoModelForSequenceClassificationWithLoss(torch.nn.Module):
         loss_values = -generated_labels[
             range(predicted_labels.shape[0]), predicted_labels
         ]
-        if self.configs["loss_calc"] not in self.hardness_calcs:
+        if self.configs["loss_calc"] not in AutoModelForSequenceClassificationWithLoss.loss_calcs:
             raise ValueError(f"Loss Calc {self.configs['loss_calc']} unsupported.")
         hardnesses = AutoModelForSequenceClassificationWithLoss.loss_calcs[
             self.configs["loss_calc"]
         ](hardnesses, steps)
         return torch.multiply(loss_values, hardnesses).mean()
-
-    @staticmethod
-    def _update_hardnesses_baseline(hardnesses, steps):
-        return torch.ones_like(hardnesses)
-
-    @staticmethod
-    def _update_hardnesses_triangle(hardnesses, steps):
-        return ((2 * hardnesses - 1) * (steps - 1)) + 1
-
-    @staticmethod
-    def _update_hardnesses_inv_triangle(hardnesses, steps):
-        return ((1 - 2 * hardnesses) * steps) + 2 * hardnesses
-
-    @staticmethod
-    def _update_hardnesses_crazy(hardnesses, steps):
-        return (1.5 - 5 * (0.5 - hardnesses)) / (steps + 0.2) + 1

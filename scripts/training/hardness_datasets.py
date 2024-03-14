@@ -9,12 +9,72 @@ Enriched HuggingFace Datasets with calculated hardness values.
 
 class SNLICartographyDataset(Dataset):
     hardnesses = None
+    @staticmethod
+    def _create_hardnesses_baseline(dataset):
+        hardness = []
+        for item in dataset:
+            coords = SNLICartographyDataset.hardnesses[
+                (item["premise"], item["hypothesis"])
+            ]
+            hardness.append(coords["correctness"])  # Some arbitrary column for baseline
+        return hardness
+
+    @staticmethod
+    def _create_hardnesses_variability(dataset):
+        hardness = []
+        for item in dataset:
+            coords = SNLICartographyDataset.hardnesses[
+                (item["premise"], item["hypothesis"])
+            ]
+            hardness.append(coords["variability"])
+        return hardness
+
+    @staticmethod
+    def _create_hardnesses_variability_normalized(dataset):
+        hardness = []
+        for item in dataset:
+            coords = SNLICartographyDataset.hardnesses[
+                (item["premise"], item["hypothesis"])
+            ]
+            hardness.append(coords["variability"])
+        min_hardness = min(hardness)
+        max_hardenss = max(hardness)
+        hardness = [
+            (val - min_hardness) / (max_hardenss - min_hardness) for val in hardness
+        ]
+        return hardness
+
+    @staticmethod
+    def _create_hardnesses_confidence(dataset):
+        hardness = []
+        for item in dataset:
+            coords = SNLICartographyDataset.hardnesses[
+                (item["premise"], item["hypothesis"])
+            ]
+            hardness.append(1 - coords["confidence"])
+        return hardness
+
+    @staticmethod
+    def _create_hardnesses_confidence_normalized(dataset):
+        hardness = []
+        for item in dataset:
+            coords = SNLICartographyDataset.hardnesses[
+                (item["premise"], item["hypothesis"])
+            ]
+            hardness.append(1 - coords["confidence"])
+        min_hardness = min(hardness)
+        max_hardenss = max(hardness)
+        hardness = [
+            (val - min_hardness) / (max_hardenss - min_hardness) for val in hardness
+        ]
+        return hardness
+
     create_hardnesses = {
-        "baseline": _create_hardnesses_baseline,
-        "variability": _create_hardnesses_variability,
-        "even-scaled-variability": _create_hardnesses_variability_normalized,
-        "confidence": _create_hardnesses_confidence,
-        "even-scaled-confidence": _create_hardnesses_confidence_normalized,
+        "baseline": _create_hardnesses_baseline.__get__(object),
+        "variability": _create_hardnesses_variability.__get__(object),
+        "even-scaled-variability": _create_hardnesses_variability_normalized.__get__(object),
+        "confidence": _create_hardnesses_confidence.__get__(object),
+        "even-scaled-confidence": _create_hardnesses_confidence_normalized.__get__(object),
     }
 
     def __init__(
@@ -27,8 +87,8 @@ class SNLICartographyDataset(Dataset):
         # Add hardnesses to train dataset
         if not is_eval:
             hardness = []
-            if hardness_calc in self.create_harnesses:
-                hardness = SNLICartographyDataset.create_hardnesses[hardness_calc]()
+            if hardness_calc in self.create_hardnesses:
+                hardness = SNLICartographyDataset.create_hardnesses[hardness_calc](self.dataset)
             else:
                 raise ValueError(f"Hardness Calc {hardness_calc} unsupported.")
             self.dataset = self.dataset.add_column("hardness", hardness)
@@ -65,66 +125,6 @@ class SNLICartographyDataset(Dataset):
         elif order == "decreasing":
             self.dataset = self.dataset.sort("hardness", reverse=True)
 
-    @staticmethod
-    def _create_hardnesses_baseline():
-        hardness = []
-        for item in dataset:
-            coords = SNLICartographyDataset.hardnesses[
-                (item["premise"], item["hypothesis"])
-            ]
-            hardness.append(coords["correctness"])  # Some arbitrary column for baseline
-        return hardness
-
-    @staticmethod
-    def _create_hardnesses_variability():
-        hardness = []
-        for item in dataset:
-            coords = SNLICartographyDataset.hardnesses[
-                (item["premise"], item["hypothesis"])
-            ]
-            hardness.append(coords["variability"])
-        return hardness
-
-    @staticmethod
-    def _create_hardnesses_variability_normalized():
-        hardness = []
-        for item in dataset:
-            coords = SNLICartographyDataset.hardnesses[
-                (item["premise"], item["hypothesis"])
-            ]
-            hardness.append(coords["variability"])
-        min_hardness = min(hardness)
-        max_hardenss = max(hardness)
-        hardness = [
-            (val - min_hardness) / (max_hardenss - min_hardness) for val in hardness
-        ]
-        return hardness
-
-    @staticmethod
-    def _create_hardnesses_confidence():
-        hardness = []
-        for item in dataset:
-            coords = SNLICartographyDataset.hardnesses[
-                (item["premise"], item["hypothesis"])
-            ]
-            hardness.append(1 - coords["confidence"])
-        return hardness
-
-    @staticmethod
-    def _create_hardnesses_confidence_normalized():
-        hardness = []
-        for item in dataset:
-            coords = SNLICartographyDataset.hardnesses[
-                (item["premise"], item["hypothesis"])
-            ]
-            hardness.append(1 - coords["confidence"])
-        min_hardness = min(hardness)
-        max_hardenss = max(hardness)
-        hardness = [
-            (val - min_hardness) / (max_hardenss - min_hardness) for val in hardness
-        ]
-        return hardness
-
 
 class SNLINgramPerplexityDataset(Dataset):
     hardnesses = None
@@ -141,7 +141,7 @@ class SNLINgramPerplexityDataset(Dataset):
 
         # hardness is only neeeded for train set
         if not is_eval:
-            hardness = SNLINgramPerplexityDataset._create_hardnesses()
+            hardness = self._create_hardnesses()
             self.dataset = self.dataset.add_column("hardness", hardness)
         if limit > 0:
             self.dataset = self.dataset.shuffle(seed=42).select(range(limit))
@@ -175,15 +175,15 @@ class SNLINgramPerplexityDataset(Dataset):
         elif order == "decreasing":
             self.dataset = self.dataset.sort("hardness", reverse=True)
 
-    def _create_hardnesses():
+    def _create_hardnesses(self):
         hardness = []
-        for item in dataset:
+        for item in self.dataset:
             key = (item["premise"], item["hypothesis"])
             val = SNLINgramPerplexityDataset.hardnesses.get(key, None)
             assert val is not None, f"couldn't find key: {key}"
             hardness.append(SNLINgramPerplexityDataset.hardnesses.get(key))
         min_hardness = min(hardness)
-        max_hardenss = max(hardness)
+        max_hardness = max(hardness)
         hardness = [
             (val - min_hardness) / (max_hardness - min_hardness) for val in hardness
         ]

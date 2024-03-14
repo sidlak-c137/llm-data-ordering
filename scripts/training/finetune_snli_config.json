@@ -1,7 +1,7 @@
 {
     "repo_path": "/gscratch/ml4ml/sidlak/cse517-final-project",
     "model_name": "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
-    "hardness_calc": "ngram-perplexity",
+    "hardness_calc": "confidence",
     "loss_calc": "triangle",
     "data_order": null,
     "architecture_args": {
