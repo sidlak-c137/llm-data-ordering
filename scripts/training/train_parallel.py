@@ -1,39 +1,32 @@
+import argparse
+import json
+import os
+
+import evaluate
+import pandas as pd
 import torch
 import torch.nn.functional as F
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSequenceClassification,
-    AutoModelForCausalLM,
-    BitsAndBytesConfig,
-)
-from transformers import get_scheduler, DataCollatorWithPadding, set_seed
-from datasets import load_dataset
-import pandas as pd
-import evaluate
-from torch.utils.data import DataLoader
-from torch.optim import AdamW
 from accelerate import Accelerator
-from peft import LoraConfig, get_peft_model
-import os
-import json
-import argparse
-from tqdm.auto import tqdm
-from hardness_datasets import SNLICartographyDataset, SNLINgramPerplexityDataset
+from datasets import load_dataset
+from hardness_datasets import (SNLICartographyDataset,
+                               SNLINgramPerplexityDataset)
 from modified_models import AutoModelForSequenceClassificationWithLoss
-
-DATA_MAP_HARDNESSES = [
-    "baseline",
-    "variability",
-    "variability_even_scaling",
-    "confidence",
-    "confidence_even_scaling",
-]
-
+from peft import LoraConfig, get_peft_model
+from torch.optim import AdamW
+from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
+from transformers import (AutoModelForCausalLM,
+                          AutoModelForSequenceClassification, AutoTokenizer,
+                          BitsAndBytesConfig, DataCollatorWithPadding,
+                          get_scheduler, set_seed)
 
 class Model:
-    def __init__(self, configs, name):
+    def __init__(self, configs):
         self.configs = configs
-        self.name = name
+        if self.configs["data_order"] is None:
+            self.name = f"{self.configs["dataset"]}_{self.configs["loss_calc"]}_{self.configs["hardness_calc"]}"
+        else:
+            self.name = f"{self.configs["dataset"]}_{self.configs["data_order"]}_{self.configs["hardness_calc"]}_{self.configs["data_order"]}"
         self.best_model_path = ""
         self.train_metrics = {
             "step": [],
@@ -106,7 +99,7 @@ class Model:
                 self.configs["repo_path"], self.configs["dataset_ngram_path"]
             )
 
-            if self.configs["hardness_calc"] in DATA_MAP_HARDNESSES:
+            if self.configs["hardness_calc"] in SNLICartographyDataset.create_hardnesses:
                 self.train_dataset = SNLICartographyDataset(
                     coordinates_path,
                     train_snli,
@@ -131,7 +124,7 @@ class Model:
                     True,
                     self.configs["hardness_calc"],
                 )
-            elif self.configs["hardness_calc"] == "ngram_perplexity":
+            elif self.configs["hardness_calc"] == "ngram-perplexity":
                 self.train_dataset = SNLINgramPerplexityDataset(
                     ngram_path,
                     train_snli,
@@ -153,10 +146,12 @@ class Model:
                     self.tokenizer,
                     True,
                 )
+            else:
+                raise ValueError(f"Hardness Calc {hardness_calc} unsupported.")
 
-            self.accelerator.print(
-                f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points"
-            )
+            if self.accelerator.is_main_process:
+                with open(f"{self.name}_test.txt", "w") as f:
+                    f.write(f"Loaded {len(self.train_dataset)} train, {len(self.val_dataset)} val, and {len(self.test_dataset)} test data points\n")
 
             # sort train set if using ordered data
             if self.configs["data_order"] is not None:
@@ -184,22 +179,13 @@ class Model:
         else:
             raise ValueError(f"Dataset {self.configs['optim']} unsupported.")
 
-        if self.configs["data_order"] is not None:
-            train_dataloader = DataLoader(
-                self.train_dataset,
-                shuffle=False,
-                batch_size=self.configs["trainer_args"]["batch_size"],
-                collate_fn=self.data_collator,
-                drop_last=True,
-            )
-        else:
-            train_dataloader = DataLoader(
-                self.train_dataset,
-                shuffle=True,
-                batch_size=self.configs["trainer_args"]["batch_size"],
-                collate_fn=self.data_collator,
-                drop_last=True,
-            )
+        train_dataloader = DataLoader(
+            self.train_dataset,
+            shuffle=self.configs["data_order"] is None,
+            batch_size=self.configs["trainer_args"]["batch_size"],
+            collate_fn=self.data_collator,
+            drop_last=True,
+        )
 
         eval_dataloader = DataLoader(
             self.val_dataset,
@@ -324,7 +310,9 @@ class Model:
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
         loss = losses.mean().item()
-        self.accelerator.print(f"Evaluation Accuracy: {acc}, Evaluation Loss: {loss}")
+        if self.accelerator.is_main_process:
+            with open(f"{self.name}_test.txt", "a") as f:
+                f.write(f"Evaluation Accuracy: {acc}, Evaluation Loss: {loss}\n")
         if self.accelerator.is_main_process:
             self.train_metrics["step"].append(
                 step * self.accelerator.state.num_processes
@@ -337,7 +325,7 @@ class Model:
             self.best_model_path = os.path.join(
                 self.configs["repo_path"],
                 self.configs["trainer_args"]["output_dir"],
-                f"{self.name}/model_{acc}_{step}",
+                f"{self.name}/best_model",
             )
             self.accelerator.wait_for_everyone()
             unwrapped_model = self.accelerator.unwrap_model(self.model_parallel).model
@@ -437,9 +425,9 @@ class Model:
         ]
         # Compute metrics
         acc = self._compute_metrics(predictions, labels)
-        self.accelerator.print(
-            f"Test Accuracy: {acc}, Test Loss: {losses.mean().item()}"
-        )
+        if self.accelerator.is_main_process:
+            with open(f"{self.name}_test.txt", "a") as f:
+                f.write(f"Test Accuracy: {acc}, Test Loss: {losses.mean().item()}\n")
 
 
 def main():
@@ -459,7 +447,7 @@ def main():
     configs = json.load(config_file)
 
     # Initialize model, dataset, and tokenizer using configs
-    model = Model(configs, configs["experiment_name"])
+    model = Model(configs)
     model.create_model_tokenizer()
     model.initialize_data()
 

@@ -1,12 +1,13 @@
 {
     "repo_path": "/mmfs1/gscratch/efml/hannahyk/nlp/cse517-final-project",
     "model_name": "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
-    "experiment_name": "snli_ordered_confidence_inc",
     "hardness_calc": "confidence",
     "loss_calc": "baseline",
     "data_order": "increasing",
     "architecture_args": {
-        "unfrozen_layers": ["score"],
+        "unfrozen_layers": [
+            "score"
+        ],
         "quantized": null
     },
     "dataset": "snli",

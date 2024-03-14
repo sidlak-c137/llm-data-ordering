@@ -1,12 +1,13 @@
 {
     "repo_path": "/gscratch/ml4ml/sidlak/cse517-final-project",
     "model_name": "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
-    "experiment_name": "snli_triangle_ngram_perplexity",
-    "hardness_calc": "ngram_perplexity",
+    "hardness_calc": "ngram-perplexity",
     "loss_calc": "triangle",
     "data_order": null,
     "architecture_args": {
-        "unfrozen_layers": ["score"],
+        "unfrozen_layers": [
+            "score"
+        ],
         "quantized": null
     },
     "dataset": "snli",
